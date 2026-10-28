@@ -1,4 +1,0 @@
-Mô hình,Accuracy D0,Accuracy D1,Accuracy D2,Chênh lệch Accuracy (D1 - D0),Chênh lệch Accuracy (D2 - D0),F1 D0,F1 D1,F1 D2,Chênh lệch F1 (D1 - D0),Chênh lệch F1 (D2 - D0)
-Decision Tree,0.99767,0.99766,0.99768,-1e-05,0.0,0.99515,0.99513,0.99516,-2e-05,1e-05
-Logistic Regression,0.98637,0.98653,0.98542,0.00016,-0.00095,0.97188,0.97223,0.96992,0.00035,-0.00197
-Random Forest,0.99895,0.99898,0.99895,3e-05,0.0,0.99781,0.99787,0.99782,6e-05,1e-05
