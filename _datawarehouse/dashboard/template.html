@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phân tích lưu lượng tấn công mạng</title>
+<style>
+:root{--bg:#F6F6F4;--card:#FFFFFF;--ink:#0B0B0B;--ink2:#52514E;--muted:#898781;--line:#E1E0D9;--axis:#C3C2B7;--attack:#EB6834;--benign:#2A78D6;--font:system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding-top:14px;padding-bottom:10px}
+h1{font-size:20px;font-weight:600;margin:0}
+.sub{margin:2px 0 0;font-size:12.5px;color:var(--ink2)}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl label{font-size:12.5px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+button,select{font:inherit;font-size:13px;border:1px solid var(--axis);background:#fff;border-radius:8px;padding:6px 10px;color:var(--ink);cursor:pointer}
+button:hover,select:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--benign);outline-offset:2px}
+.nav{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:10px}
+.nav a{font-size:12.5px;color:var(--ink2);text-decoration:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px}
+.nav a:hover{border-color:var(--axis);color:var(--ink)}
+main{padding-top:16px;padding-bottom:40px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:8px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.kpi p{margin:0}
+.kpi .l{font-size:12.5px;color:var(--ink2)}
+.kpi .v{font-size:26px;font-weight:600;margin-top:2px}
+section{margin-top:26px}
+h2{font-size:17px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+.tag{font-size:12px;font-weight:600;background:#E6F0FB;color:#184F95;border-radius:6px;padding:2px 8px}
+.q{margin:0 0 12px;font-size:13px;color:var(--ink2)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.full{grid-column:1/-1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card h3{font-size:14px;font-weight:600;margin:0}
+.card .note{font-size:12px;color:var(--ink2);margin:2px 0 8px}
+.foot{font-size:12px;color:var(--muted);margin:8px 0 0}
+svg text{font-family:var(--font)}
+.t{fill:var(--ink2);font-size:11px}
+.tp{fill:var(--ink)}
+.tm{fill:var(--muted)}
+.lg{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px}
+.lg span{font-size:12px;color:var(--ink2);display:inline-flex;align-items:center;gap:5px}
+.lg i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.nolab .vl{display:none}
+#tip{position:fixed;display:none;z-index:20;background:#0B0B0B;color:#fff;font-size:12px;padding:6px 9px;border-radius:6px;pointer-events:none;max-width:260px;line-height:1.45}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{font-weight:600;text-align:left;color:var(--ink2);border-bottom:1px solid var(--axis);padding:6px 8px;white-space:nowrap}
+.tbl td{border-bottom:1px solid var(--line);padding:6px 8px}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl tr.sub td{color:var(--ink2)}
+.tbl tr.tot td{font-weight:600;border-top:1px solid var(--axis)}
+.tg{background:none;border:0;padding:0;margin-right:6px;cursor:pointer;color:var(--ink2);font-size:12px;width:14px}
+.scroll{overflow-x:auto}
+@media(max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap hd">
+    <div>
+      <h1>Phân tích lưu lượng tấn công mạng</h1>
+      <p class="sub">LYCOS-IDS2017 · Data warehouse · 5 ngày, giờ địa phương UTC−3</p>
+    </div>
+    <div class="ctl">
+      <label>Giao thức <select id="fProto"></select></label>
+      <label>Ngày <select id="fDay"></select></label>
+      <button id="bLab" aria-pressed="true">Nhãn số: Bật</button>
+      <button id="bReset">Đặt lại bộ lọc</button>
+    </div>
+  </div>
+  <nav class="wrap nav" aria-label="Chuyển nhanh">
+    <a href="#q1">Q1 · Thời điểm tấn công</a><a href="#q2">Q2 · Giao thức và dịch vụ</a><a href="#q3">Q3 · Hồ sơ lưu lượng</a><a href="#q4">Q4 · Loại tấn công theo ngày</a>
+  </nav>
+</header>
+
+<main class="wrap" id="root">
+  <div class="kpis">
+    <div class="kpi"><p class="l">Tổng số luồng</p><p class="v" id="kFlow"></p></div>
+    <div class="kpi"><p class="l">Luồng tấn công</p><p class="v" id="kAtk" style="color:var(--attack)"></p></div>
+    <div class="kpi"><p class="l">Tỷ lệ tấn công</p><p class="v" id="kRate"></p></div>
+    <div class="kpi"><p class="l">Giờ có dữ liệu</p><p class="v" id="kHrs"></p></div>
+  </div>
+
+  <section id="q1">
+    <h2><span class="tag">Q1</span>Tấn công vào lúc nào?</h2>
+    <p class="q">Lưu lượng tấn công tập trung vào ngày và khung giờ nào; tỷ lệ tấn công thay đổi ra sao theo thời gian?</p>
+    <div class="grid">
+      <div class="card"><h3>Số luồng tấn công theo ngày và giờ</h3><p class="note">Ô nét đứt: giờ không có dữ liệu thu thập</p><div id="c-heat" data-label="Heatmap số luồng tấn công theo ngày và giờ"></div></div>
+      <div class="card"><h3>Số luồng tấn công trung bình mỗi giờ quan sát</h3><p class="note">Chuẩn hóa theo số giờ có dữ liệu: thứ Năm chỉ có 4 giờ, các ngày khác 10 giờ</p><div id="c-perhour" data-label="Số luồng tấn công trung bình mỗi giờ theo ngày"></div></div>
+      <div class="card full"><h3>Tỷ lệ luồng tấn công theo giờ</h3><p class="note">Tấn công trên tổng luồng cùng giờ; mỗi đường là một ngày</p><div id="c-line" data-label="Tỷ lệ luồng tấn công theo giờ, mỗi ngày một đường"></div></div>
+    </div>
+    <p class="foot">Các đỉnh phản ánh lịch tấn công định trước của dữ liệu mô phỏng CIC-IDS2017, không phải quy luật hành vi chung của kẻ tấn công.</p>
+  </section>
+
+  <section id="q2">
+    <h2><span class="tag">Q2</span>Tấn công nhắm vào dịch vụ nào?</h2>
+    <p class="q">Giao thức và dịch vụ nào mang lưu lượng tấn công; mỗi loại tấn công nhắm vào bao nhiêu cổng đích khác nhau?</p>
+    <div class="grid">
+      <div class="card"><h3>Số luồng tấn công theo nhóm dịch vụ</h3><p class="note">Cổng đích được gom thành 9 nhóm dịch vụ</p><div id="c-svc" data-label="Số luồng tấn công theo nhóm dịch vụ"></div></div>
+      <div class="card"><h3>Số cổng đích khác nhau của từng loại tấn công</h3><p class="note">Chỉ tính các loại tấn công</p><div id="c-ports" data-label="Số cổng đích khác nhau theo loại tấn công"></div></div>
+    </div>
+    <p class="foot">Nhóm "Other" gồm các cổng không thuộc dịch vụ quen thuộc nào, chủ yếu là các cổng mà PortScan quét qua.</p>
+  </section>
+
+  <section id="q3">
+    <h2><span class="tag">Q3</span>Lưu lượng tấn công khác Benign thế nào?</h2>
+    <p class="q">Mỗi loại tấn công có hồ sơ lưu lượng (byte, thời lượng) khác biệt ra sao so với lưu lượng Benign?</p>
+    <div class="grid">
+      <div class="card"><h3>Byte trung bình mỗi luồng</h3><p class="note">Thang log; xanh: Benign, cam: tấn công</p><div id="c-bytes" data-label="Byte trung bình mỗi luồng theo loại, thang log"></div></div>
+      <div class="card"><h3>Thời lượng trung bình mỗi luồng (giây)</h3><p class="note">Thang log; xanh: Benign, cam: tấn công</p><div id="c-dur" data-label="Thời lượng trung bình mỗi luồng theo loại, thang log"></div></div>
+      <div class="card full"><h3>Trung bình so với trung vị</h3><p class="note">Trung vị tính trên toàn bộ dữ liệu, không đổi theo bộ lọc</p><div class="scroll" id="t-prof"></div>
+        <p class="foot">Dữ liệu lệch phải mạnh nên trung bình bị kéo lên bởi một số ít luồng rất lớn. Nhiều nhãn có trung vị byte bằng 0 vì phần lớn luồng chỉ có gói điều khiển, không mang dữ liệu.</p></div>
+    </div>
+  </section>
+
+  <section id="q4">
+    <h2><span class="tag">Q4</span>Mỗi ngày có những loại tấn công nào?</h2>
+    <p class="q">Mỗi ngày trong tuần chứa những loại tấn công nào và với quy mô ra sao?</p>
+    <div class="grid">
+      <div class="card"><h3>Số luồng tấn công theo ngày và nhóm</h3><p class="note">Thứ Hai chỉ có lưu lượng Benign</p><div id="c-stack" data-label="Cột chồng số luồng tấn công theo ngày và nhóm tấn công"></div></div>
+      <div class="card"><h3>Nhóm tấn công × ngày</h3><p class="note">Bấm vào mũi tên để mở từng loại trong nhóm</p><div class="scroll" id="t-pivot"></div></div>
+    </div>
+    <p class="foot">Mỗi loại tấn công chỉ xuất hiện trong đúng một ngày theo lịch kịch bản, vì vậy dữ liệu huấn luyện được chia ngẫu nhiên có phân tầng thay vì chia theo ngày.</p>
+  </section>
+</main>
+<div id="tip"></div>
+
+<script>
+(function(){
+var D=/*__DATA__*/null;
+var DV=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6'];
+var HRS=[8,9,10,11,12,13,14,15,16,17];
+var DAYC=['#2A78D6','#EB6834','#1BAF7A','#EDA100','#E87BA4'];
+var GRPC={'Bot':'#2A78D6','Brute Force':'#EB6834','DDoS':'#1BAF7A','DoS':'#EDA100','Heartbleed':'#E87BA4','PortScan':'#008300','Web Attack':'#6250D6'};
+var AGRP=Object.keys(GRPC);
+var SGRP=['Web','Name Resolution','Authentication & Directory','File Sharing & Windows','Remote Access','File Transfer','Email','Network Infrastructure','Other'];
+var SVC={80:0,443:0,8080:0,444:0,53:1,5353:1,5355:1,88:2,389:2,3268:2,135:3,137:3,138:3,139:3,445:3,22:4,23:4,3389:4,21:5,25:6,110:6,143:6,465:6,587:6,993:6,67:7,68:7,123:7,161:7,1900:7};
+function sg(p){var i=SVC[p];return i===undefined?'Other':SGRP[i]}
+var state={proto:-1,day:-1};
+var open={};
+var nf=new Intl.NumberFormat('vi-VN');
+function fmt(n){return nf.format(Math.round(n))}
+function fmtD(n,d){return new Intl.NumberFormat('vi-VN',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n)}
+function pc(x){return fmtD(x*100,1)+'%'}
+function compact(v){return v>=1e6?fmtD(v/1e6,1)+'M':v>=1e3?fmtD(v/1e3,v>=1e5?0:1)+'k':fmt(v)}
+function niceMax(v){var p=Math.pow(10,Math.floor(Math.log10(v||1)));var f=v/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p}
+function dsel(){return state.day<0?[0,1,2,3,4]:[state.day]}
+function rowsF(){return D.rows.filter(function(r){return (state.proto<0||r[2]===state.proto)&&(state.day<0||r[0]===state.day)})}
+
+var NS='http://www.w3.org/2000/svg';
+function S(tag,at,p,txt){var e=document.createElementNS(NS,tag);for(var k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;if(p)p.appendChild(e);return e}
+function T(p,x,y,s,cls,an){return S('text',{x:x,y:y,'class':cls||'t','text-anchor':an||'start'},p,s)}
+var tipEl=document.getElementById('tip');
+function tip(e,html){
+  e.addEventListener('mousemove',function(ev){tipEl.innerHTML=html;tipEl.style.display='block';var x=Math.min(ev.clientX+14,window.innerWidth-tipEl.offsetWidth-8);tipEl.style.left=x+'px';tipEl.style.top=(ev.clientY+14)+'px'});
+  e.addEventListener('mouseleave',function(){tipEl.style.display='none'});
+}
+function mk(id,W,H){
+  var c=document.getElementById(id);
+  [].slice.call(c.querySelectorAll('svg,.lg')).forEach(function(n){n.remove()});
+  var s=S('svg',{viewBox:'0 0 '+W+' '+H,width:'100%',role:'img','aria-label':c.dataset.label||''});
+  c.appendChild(s);return s;
+}
+function legend(id,items){
+  var c=document.getElementById(id),d=document.createElement('div');d.className='lg';
+  d.innerHTML=items.map(function(i){return '<span><i style="background:'+i[1]+'"></i>'+i[0]+'</span>'}).join('');
+  c.appendChild(d);
+}
+function yAxis(s,l,r,t,b,mx,n,f){
+  for(var i=0;i<=n;i++){
+    var v=mx*i/n,y=b-(b-t)*i/n;
+    S('line',{x1:l,x2:r,y1:y,y2:y,stroke:i?'#E1E0D9':'#C3C2B7','stroke-width':1},s);
+    T(s,l-8,y+4,f(v),'t','end');
+  }
+}
+function none(s,W){T(s,W/2,40,'Không có dữ liệu với bộ lọc này','t tm','middle')}
+
+function kpi(rs){
+  var f=0,a=0,h={};
+  rs.forEach(function(r){f+=r[5];a+=r[6];h[r[0]*100+r[1]]=1});
+  document.getElementById('kFlow').textContent=fmt(f);
+  document.getElementById('kAtk').textContent=fmt(a);
+  document.getElementById('kRate').textContent=f?pc(a/f):'—';
+  document.getElementById('kHrs').textContent=Object.keys(h).length+' / '+(dsel().length*24);
+}
+
+function heat(rs){
+  var days=dsel(),m={},mx=0;
+  rs.forEach(function(r){var k=r[0]*100+r[1],o=m[k]||(m[k]=[0,0]);o[0]+=r[5];o[1]+=r[6]});
+  for(var k in m)mx=Math.max(mx,m[k][1]);
+  var W=640,L=58,cw=(W-L-6)/10,ch=32,top=6,H=top+days.length*(ch+3)+28;
+  var s=mk('c-heat',W,H);
+  days.forEach(function(d,i){
+    var y=top+i*(ch+3);
+    T(s,0,y+ch/2+4,DV[d],'t');
+    HRS.forEach(function(h,j){
+      var o=m[d*100+h],x=L+j*cw;
+      if(!o){
+        var e=S('rect',{x:x,y:y,width:cw-3,height:ch,rx:3,fill:'none',stroke:'#C3C2B7','stroke-dasharray':'3 3'},s);
+        tip(e,'<b>'+DV[d]+' · '+h+'h</b><br>Không có dữ liệu thu thập');
+      }else{
+        var op=o[1]===0?0.08:(mx>1?0.2+0.8*Math.log(o[1])/Math.log(mx):0.9);
+        var r=S('rect',{x:x,y:y,width:cw-3,height:ch,rx:3,fill:'#EB6834','fill-opacity':op.toFixed(2)},s);
+        tip(r,'<b>'+DV[d]+' · '+h+'h</b><br>Tấn công: '+fmt(o[1])+'<br>Tổng luồng: '+fmt(o[0])+'<br>Tỷ lệ: '+pc(o[1]/o[0]));
+        T(s,x+(cw-3)/2,y+ch/2+4,fmt(o[1]),'t vl'+(op>0.6?'':' tp'),'middle').style.fill=op>0.6?'#0B0B0B':'';
+      }
+    });
+  });
+  HRS.forEach(function(h,j){T(s,L+j*cw+(cw-3)/2,H-8,h+'h','t','middle')});
+  if(!rs.length)none(s,W);
+}
+
+function perHour(rs){
+  var days=dsel(),A={},O={};
+  rs.forEach(function(r){A[r[0]]=(A[r[0]]||0)+r[6];(O[r[0]]=O[r[0]]||{})[r[1]]=1});
+  var vals=days.map(function(d){return O[d]?A[d]/Object.keys(O[d]).length:0});
+  if(!vals.some(function(v){return v>0})){none(mk('c-perhour',640,90),640);return}
+  var W=640,H=262,l=54,r=10,t=22,b=32,mx=niceMax(Math.max.apply(null,vals.concat([1])));
+  var s=mk('c-perhour',W,H);yAxis(s,l,W-r,t,H-b,mx,4,compact);
+  var bw=Math.min(64,(W-l-r)/days.length*0.55);
+  days.forEach(function(d,i){
+    var cx=l+(W-l-r)*(i+0.5)/days.length,h=vals[i]/mx*(H-b-t),n=O[d]?Object.keys(O[d]).length:0;
+    var e=S('rect',{x:cx-bw/2,y:H-b-h,width:bw,height:Math.max(h,vals[i]>0?1.5:0),rx:2,fill:'#EB6834'},s);
+    tip(e,'<b>'+DV[d]+'</b><br>'+fmt(vals[i])+' luồng tấn công mỗi giờ<br>'+n+' giờ có dữ liệu');
+    T(s,cx,H-b+16,DV[d],'t','middle');
+    T(s,cx,H-b-h-5,fmt(vals[i]),'t tp vl','middle');
+  });
+}
+
+function line(rs){
+  var days=dsel(),m={};
+  rs.forEach(function(r){var k=r[0]*100+r[1],o=m[k]||(m[k]=[0,0]);o[0]+=r[5];o[1]+=r[6]});
+  var W=1000,H=300,l=54,r=16,t=16,b=34;
+  var s=mk('c-line',W,H);yAxis(s,l,W-r,t,H-b,1,4,function(v){return Math.round(v*100)+'%'});
+  function X(h){return l+(W-l-r)*(h-8)/9}
+  function Y(v){return H-b-v*(H-b-t)}
+  HRS.forEach(function(h){T(s,X(h),H-b+16,h+'h','t','middle')});
+  days.forEach(function(d){
+    var path='',prev=false;
+    HRS.forEach(function(h){var o=m[d*100+h];if(o&&o[0]>0){path+=(prev?'L':'M')+X(h)+' '+Y(o[1]/o[0]);prev=true}else prev=false});
+    if(path)S('path',{d:path,fill:'none',stroke:DAYC[d],'stroke-width':2.2,'stroke-linejoin':'round'},s);
+    HRS.forEach(function(h){
+      var o=m[d*100+h];if(!(o&&o[0]>0))return;
+      var v=o[1]/o[0],cx=X(h),cy=Y(v);
+      S('circle',{cx:cx,cy:cy,r:3.6,fill:DAYC[d],stroke:'#fff','stroke-width':1.5},s);
+      var hit=S('circle',{cx:cx,cy:cy,r:11,fill:'transparent'},s);
+      tip(hit,'<b>'+DV[d]+' · '+h+'h</b><br>Tỷ lệ tấn công: '+pc(v)+'<br>'+fmt(o[1])+' / '+fmt(o[0])+' luồng');
+    });
+  });
+  legend('c-line',days.map(function(d){return [DV[d],DAYC[d]]}));
+  if(!rs.length)none(s,W);
+}
+
+function hbar(id,items,sc){
+  var W=640,L=170,R=84,rh=26,H=Math.max(items.length*rh+10,60);
+  var s=mk(id,W,H);
+  items.forEach(function(it,i){
+    var y=5+i*rh,w=it.value>0?Math.max(sc(it.value)*(W-L-R),3):0;
+    T(s,L-8,y+rh/2+4,it.label,'t','end');
+    var e=S('rect',{x:L,y:y+4,width:w,height:rh-10,rx:2,fill:it.color},s);
+    tip(e,it.tip);
+    T(s,L+w+6,y+rh/2+4,it.text,'t tp vl');
+  });
+  if(!items.length)none(s,W);
+}
+function logScale(vals){
+  var p=vals.filter(function(v){return v>0});if(!p.length)return function(){return 0};
+  var lo=Math.floor(Math.log10(Math.min.apply(null,p)))-0.3,hi=Math.ceil(Math.log10(Math.max.apply(null,p)));
+  return function(v){return v>0?Math.max((Math.log10(v)-lo)/((hi-lo)||1),0.02):0};
+}
+
+function svc(rs){
+  var a={};SGRP.forEach(function(g){a[g]=0});
+  rs.forEach(function(r){a[sg(r[3])]+=r[6]});
+  var items=SGRP.map(function(g){return {label:g,value:a[g]}}).sort(function(x,y){return y.value-x.value});
+  var mx=Math.max.apply(null,items.map(function(i){return i.value}).concat([1]));
+  hbar('c-svc',items.map(function(i){return {label:i.label,value:i.value,color:'#EB6834',text:fmt(i.value),tip:'<b>'+i.label+'</b><br>'+fmt(i.value)+' luồng tấn công'}}),function(v){return v/mx});
+}
+function ports(rs){
+  var m={};
+  rs.forEach(function(r){if(D.labels[r[4]][2]&&r[6]>0)(m[r[4]]=m[r[4]]||{})[r[3]]=1});
+  var items=Object.keys(m).map(function(k){return {label:D.labels[k][0],value:Object.keys(m[k]).length}}).sort(function(x,y){return y.value-x.value});
+  var mx=Math.max.apply(null,items.map(function(i){return i.value}).concat([1]));
+  hbar('c-ports',items.map(function(i){return {label:i.label,value:i.value,color:'#EB6834',text:fmt(i.value),tip:'<b>'+i.label+'</b><br>'+fmt(i.value)+' cổng đích khác nhau'}}),function(v){return v/mx});
+}
+
+function perLabel(rs){
+  var m={};
+  rs.forEach(function(r){var o=m[r[4]]||(m[r[4]]=[0,0,0,0]);o[0]+=r[5];o[1]+=r[6];o[2]+=r[7];o[3]+=r[9]});
+  return m;
+}
+function prof(rs){
+  var m=perLabel(rs),ks=Object.keys(m);
+  [['c-bytes',2,1,function(v){return fmt(v)+' B'},' byte mỗi luồng'],['c-dur',3,1e6,function(v){return fmtD(v,2)+' s'},' giây mỗi luồng']].forEach(function(c){
+    var items=ks.map(function(k){var o=m[k];return {label:D.labels[k][0],atk:D.labels[k][2],value:o[c[1]]/o[0]/(c[2]===1e6?1e6:1)}}).sort(function(x,y){return y.value-x.value});
+    var sc=logScale(items.map(function(i){return i.value}));
+    hbar(c[0],items.map(function(i){return {label:i.label,value:i.value,color:i.atk?'#EB6834':'#2A78D6',text:c[3](i.value),tip:'<b>'+i.label+'</b><br>'+c[3](i.value)+c[4]}}),sc);
+  });
+  var order=ks.map(Number).sort(function(a,b){return m[b][0]-m[a][0]});
+  var h='<table class="tbl"><thead><tr><th>Nhãn</th><th>Nhóm</th><th class="num">Số luồng</th><th class="num">Thời lượng TB (s)</th><th class="num">Thời lượng trung vị (s)</th><th class="num">Byte/luồng TB</th><th class="num">Byte/luồng trung vị</th></tr></thead><tbody>';
+  order.forEach(function(i){
+    var o=m[i],L=D.labels[i],md=D.med[L[0]];
+    h+='<tr><td>'+L[0]+'</td><td>'+L[1]+'</td><td class="num">'+fmt(o[0])+'</td><td class="num">'+fmtD(o[3]/o[0]/1e6,2)+'</td><td class="num">'+fmtD(md[0]/1e6,2)+'</td><td class="num">'+fmt(o[2]/o[0])+'</td><td class="num">'+fmt(md[1])+'</td></tr>';
+  });
+  document.getElementById('t-prof').innerHTML=h+'</tbody></table>';
+}
+
+function stack(rs){
+  var days=dsel(),m={};
+  rs.forEach(function(r){var L=D.labels[r[4]];if(!L[2]||!r[6])return;var o=m[r[0]]||(m[r[0]]={});o[L[1]]=(o[L[1]]||0)+r[6]});
+  var tot=days.map(function(d){var s=0,o=m[d]||{};for(var g in o)s+=o[g];return s});
+  if(!tot.some(function(v){return v>0})){none(mk('c-stack',640,90),640);return}
+  var W=640,H=320,l=56,r=10,t=26,b=34,mx=niceMax(Math.max.apply(null,tot.concat([1])));
+  var s=mk('c-stack',W,H);yAxis(s,l,W-r,t,H-b,mx,4,compact);
+  var cw=Math.min(72,(W-l-r)/days.length*0.55);
+  days.forEach(function(d,i){
+    var cx=l+(W-l-r)*(i+0.5)/days.length,y=H-b;
+    AGRP.forEach(function(g){
+      var v=(m[d]||{})[g]||0;if(!v)return;
+      var h=Math.max(v/mx*(H-b-t),1.5);y-=h;
+      var e=S('rect',{x:cx-cw/2,y:y,width:cw,height:h-1,rx:1,fill:GRPC[g]},s);
+      tip(e,'<b>'+DV[d]+' · '+g+'</b><br>'+fmt(v)+' luồng ('+pc(v/tot[i])+' tấn công trong ngày)');
+    });
+    T(s,cx,H-b+16,DV[d],'t','middle');
+    if(tot[i])T(s,cx,y-5,fmt(tot[i]),'t tp vl','middle');else T(s,cx,H-b-6,'Không có','t tm','middle');
+  });
+  legend('c-stack',AGRP.map(function(g){return [g,GRPC[g]]}));
+}
+
+function pivot(rs){
+  var days=dsel(),g={},mx=1;
+  rs.forEach(function(r){
+    var L=D.labels[r[4]];if(!L[2]||!r[6])return;
+    var a=g[L[1]]||(g[L[1]]={t:0,d:{},l:{}});a.t+=r[6];a.d[r[0]]=(a.d[r[0]]||0)+r[6];
+    var b=a.l[L[0]]||(a.l[L[0]]={t:0,d:{}});b.t+=r[6];b.d[r[0]]=(b.d[r[0]]||0)+r[6];
+  });
+  var gs=Object.keys(g).sort(function(x,y){return g[y].t-g[x].t});
+  gs.forEach(function(k){days.forEach(function(d){mx=Math.max(mx,g[k].d[d]||0)})});
+  function cell(v){return '<td class="num"'+(v?' style="background:rgba(235,104,52,'+(0.1+0.6*Math.log(v+1)/Math.log(mx+1)).toFixed(2)+')"':'')+'>'+(v?fmt(v):'')+'</td>'}
+  var h='<table class="tbl"><thead><tr><th>Nhóm tấn công</th>'+days.map(function(d){return '<th class="num">'+DV[d]+'</th>'}).join('')+'<th class="num">Tổng</th></tr></thead><tbody>';
+  var col={},all=0;
+  gs.forEach(function(k){
+    var a=g[k],ls=Object.keys(a.l).sort(function(x,y){return a.l[y].t-a.l[x].t});
+    var can=ls.length>1;
+    h+='<tr><td>'+(can?'<button class="tg" data-g="'+k+'" aria-expanded="'+(!!open[k])+'" aria-label="Mở nhóm '+k+'">'+(open[k]?'▾':'▸')+'</button>':'<span class="tg" style="display:inline-block"></span>')+'<b>'+k+'</b></td>'+days.map(function(d){return cell(a.d[d]||0)}).join('')+'<td class="num"><b>'+fmt(a.t)+'</b></td></tr>';
+    if(can&&open[k])ls.forEach(function(l){h+='<tr class="sub"><td style="padding-left:30px">'+l+'</td>'+days.map(function(d){return cell(a.l[l].d[d]||0)}).join('')+'<td class="num">'+fmt(a.l[l].t)+'</td></tr>'});
+    days.forEach(function(d){col[d]=(col[d]||0)+(a.d[d]||0)});all+=a.t;
+  });
+  if(!gs.length)h+='<tr><td colspan="'+(days.length+2)+'" style="color:var(--muted)">Không có luồng tấn công với bộ lọc này</td></tr>';
+  h+='<tr class="tot"><td>Tổng</td>'+days.map(function(d){return '<td class="num">'+(col[d]?fmt(col[d]):'')+'</td>'}).join('')+'<td class="num">'+fmt(all)+'</td></tr></tbody></table>';
+  document.getElementById('t-pivot').innerHTML=h;
+}
+
+function render(){
+  var rs=rowsF();
+  kpi(rs);heat(rs);perHour(rs);line(rs);svc(rs);ports(rs);prof(rs);stack(rs);pivot(rs);
+}
+
+var fP=document.getElementById('fProto'),fD=document.getElementById('fDay');
+fP.innerHTML='<option value="-1">Tất cả giao thức</option>'+D.protocols.map(function(p,i){return '<option value="'+i+'">'+p+'</option>'}).join('');
+fD.innerHTML='<option value="-1">Tất cả các ngày</option>'+DV.map(function(d,i){return '<option value="'+i+'">'+d+'</option>'}).join('');
+fP.addEventListener('change',function(){state.proto=+fP.value;render()});
+fD.addEventListener('change',function(){state.day=+fD.value;render()});
+document.getElementById('bReset').addEventListener('click',function(){state.proto=-1;state.day=-1;fP.value='-1';fD.value='-1';render()});
+var bl=document.getElementById('bLab'),root=document.getElementById('root');
+bl.addEventListener('click',function(){var off=root.classList.toggle('nolab');bl.setAttribute('aria-pressed',off?'false':'true');bl.textContent='Nhãn số: '+(off?'Tắt':'Bật')});
+document.getElementById('t-pivot').addEventListener('click',function(ev){
+  var b=ev.target.closest('.tg[data-g]');if(!b)return;
+  open[b.dataset.g]=!open[b.dataset.g];pivot(rowsF());
+});
+render();
+})();
+</script>
+</body>
+</html>
