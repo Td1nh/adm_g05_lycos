@@ -1,0 +1,4 @@
+Luật,Luật kết hợp
+Rule_1,bwd_pkt_len_mean=Q1 & ip_prot=6.0 ⇒ portscan
+Rule_2,flag_ack=Q2 & pkt_len_max=Q4 ⇒ dos_hulk
+Rule_3,bytes_per_s=Q3 & iat_max=Q4 ⇒ ddos

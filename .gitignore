@@ -2,3 +2,18 @@
 data/
 .ipynb_checkpoints/
 __pycache__/
+
+# Raw datasets
+/01_raw_data/*.csv
+
+# Merged datasets
+/02_merge_data/*.csv
+/02_merge_data/*.sql
+
+# Temporary files
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
+
+# Generated model datasets
+/04_output/02_clean_data/

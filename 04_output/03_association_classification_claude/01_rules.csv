@@ -1,0 +1,10 @@
+Phương pháp,Luật,Tiền đề (IF),Kết luận (THEN),Coverage,Support,Confidence,Lift
+Apriori,Rule_1,fwd_pkt_hdr_len_tot=Q3,label=attack,0.2311,0.1679,0.7268,3.0201
+Apriori,Rule_2,bwd_pkt_len_mean=Q4 & bwd_pkt_len_tot=Q4,label=attack,0.2171,0.1409,0.6489,2.6964
+Apriori,Rule_3,fwd_pkt_len_max=Q1 & fwd_pkt_len_mean=Q1,label=attack,0.214,0.1457,0.6808,2.8292
+FP-Growth,Rule_1,fwd_pkt_hdr_len_tot=Q3,label=attack,0.2311,0.1679,0.7268,3.0201
+FP-Growth,Rule_2,bwd_pkt_len_mean=Q4 & bwd_pkt_len_tot=Q4,label=attack,0.2171,0.1409,0.6489,2.6964
+FP-Growth,Rule_3,fwd_pkt_len_max=Q1 & fwd_pkt_len_mean=Q1,label=attack,0.214,0.1457,0.6808,2.8292
+CHARM,Rule_1,fwd_pkt_hdr_len_tot=Q3,label=attack,0.2311,0.1679,0.7268,3.0201
+CHARM,Rule_2,bwd_pkt_len_mean=Q4 & bwd_pkt_len_tot=Q4,label=attack,0.2171,0.1409,0.6489,2.6964
+CHARM,Rule_3,fwd_pkt_len_mean=Q1 & fwd_subflow_bytes_mean=Q1,label=attack,0.1928,0.1458,0.7561,3.142

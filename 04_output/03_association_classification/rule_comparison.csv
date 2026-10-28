@@ -1,0 +1,4 @@
+So sánh,Số luật trùng,Cùng bộ 3 luật,Cùng thứ tự
+Apriori / FP-Growth,3/3,Có,Có
+Apriori / CHARM,2/3,Không,Không
+FP-Growth / CHARM,2/3,Không,Không
