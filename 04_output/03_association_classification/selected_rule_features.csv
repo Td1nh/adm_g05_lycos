@@ -1,4 +1,0 @@
-Luật,Luật kết hợp
-Rule_1,bwd_pkt_len_mean=Q4 ⇒ attack
-Rule_2,bwd_pkt_len_mean=Q1 & bytes_per_s=Q1 ⇒ attack
-Rule_3,iat_max=Q1 & pkt_len_max=Q1 ⇒ attack
