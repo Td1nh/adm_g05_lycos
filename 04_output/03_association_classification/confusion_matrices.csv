@@ -1,0 +1,7 @@
+Bộ dữ liệu,Mô hình,TN,FP,FN,TP
+D0,Logistic Regression,275269,3454,2245,86078
+D0,Decision Tree,278285,438,642,87681
+D0,Random Forest,278430,293,573,87750
+D1,Logistic Regression,277619,1104,2329,85994
+D1,Decision Tree,278284,439,642,87681
+D1,Random Forest,278426,297,585,87738
