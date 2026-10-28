@@ -1,6 +1,6 @@
 ﻿--Author: NhiQB
 --DATA WAREHOUSE - LYCOS-IDS2017
---Desciption : tạo các bảng DimTime, DimProtocol, DimService, DimAttackLabel, FactNetworkFlow, FlowFeature, CubeFlow
+--Desciption : tạo các bảng DimTime, DimProtocol, DimService, DimAttackLabel, FactNetworkFlow, CubeFlow
 
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
@@ -13,7 +13,7 @@ BEGIN
     SET NOCOUNT ON
 
     DROP TABLE IF EXISTS dbo.CubeFlow
-    DROP TABLE IF EXISTS dbo.FlowFeature
+    DROP TABLE IF EXISTS dbo.FlowFeature  -- bảng của phiên bản cũ, nếu còn
     DROP TABLE IF EXISTS dbo.FactNetworkFlow
     DROP TABLE IF EXISTS dbo.DimTime
     DROP TABLE IF EXISTS dbo.DimProtocol
@@ -24,9 +24,7 @@ GO
 
 -- 1. DimTime: Ngay -> Khung gio -> Gio (UTC-3)
 CREATE OR ALTER PROCEDURE dbo.usp_DW_BuildTable
-    @_UtcOffsetHours INT = -3,
-    @_TestRatio      DECIMAL(4,3) = 0.200,
-    @_Seed           INT          = 42
+    @_UtcOffsetHours INT = -3
 AS
 BEGIN
     SET NOCOUNT ON
@@ -203,7 +201,6 @@ BEGIN
     DECLARE @src BIGINT = (SELECT COUNT_BIG(*) FROM dbo.data_raw)
 
     DROP TABLE IF EXISTS dbo.CubeFlow
-    DROP TABLE IF EXISTS dbo.FlowFeature
     DROP TABLE IF EXISTS dbo.FactNetworkFlow
 
     CREATE TABLE dbo.FactNetworkFlow (
@@ -214,7 +211,6 @@ BEGIN
         label_key     INT          NOT NULL,
         flow_id       VARCHAR(255) NOT NULL,
         flow_start_us BIGINT       NOT NULL,
-        data_split    VARCHAR(5)   NOT NULL,
         flow_count    INT          NOT NULL,
         is_attack     TINYINT      NOT NULL,
         fwd_bytes     BIGINT       NOT NULL,
@@ -229,8 +225,7 @@ BEGIN
         CONSTRAINT FK_Fact_Time     FOREIGN KEY (time_key)     REFERENCES dbo.DimTime (time_key),
         CONSTRAINT FK_Fact_Protocol FOREIGN KEY (protocol_key) REFERENCES dbo.DimProtocol (protocol_key),
         CONSTRAINT FK_Fact_Service  FOREIGN KEY (service_key)  REFERENCES dbo.DimService (service_key),
-        CONSTRAINT FK_Fact_Label    FOREIGN KEY (label_key)    REFERENCES dbo.DimAttackLabel (label_key),
-        CONSTRAINT CK_Fact_Split    CHECK (data_split IN ('train', 'test'))
+        CONSTRAINT FK_Fact_Label    FOREIGN KEY (label_key)    REFERENCES dbo.DimAttackLabel (label_key)
     );
 
     WITH src AS (
@@ -249,27 +244,19 @@ BEGIN
         JOIN dbo.DimAttackLabel dal ON dal.label_raw = src.label
         JOIN dbo.DimProtocol    dp  ON dp.ip_protocol_number = src.ip_prot
         JOIN dbo.DimService     ds  ON ds.dst_port = src.dst_port
-    ),
-    rnk AS (
-        SELECT lkp.*,
-               ROW_NUMBER() OVER (PARTITION BY lkp.is_attack
-                                  ORDER BY HASHBYTES('SHA1', CONCAT(@_Seed, '-', lkp.id))) AS rn,
-               COUNT_BIG(*) OVER (PARTITION BY lkp.is_attack) AS cnt
-        FROM lkp
     )
     INSERT INTO dbo.FactNetworkFlow WITH (TABLOCK)
            (flow_key, time_key, protocol_key, service_key, label_key, flow_id, flow_start_us,
-            data_split, flow_count, is_attack, fwd_bytes, bwd_bytes, total_bytes,
+            flow_count, is_attack, fwd_bytes, bwd_bytes, total_bytes,
             fwd_packets, bwd_packets, total_packets, flow_duration, bytes_per_s)
-    SELECT rnk.id, rnk.time_key, rnk.protocol_key, rnk.service_key, rnk.label_key,
-           rnk.flow_id, rnk.[timestamp],
-           CASE WHEN rnk.rn <= CEILING(@_TestRatio * rnk.cnt) THEN 'test' ELSE 'train' END,
-           1, rnk.is_attack,
-           rnk.fwd_pkt_len_tot, rnk.bwd_pkt_len_tot, rnk.fwd_pkt_len_tot + rnk.bwd_pkt_len_tot,
-           rnk.fwd_pkt_cnt, rnk.bwd_pkt_cnt, rnk.fwd_pkt_cnt + rnk.bwd_pkt_cnt,
-           rnk.flow_duration, rnk.bytes_per_s
-    FROM rnk
-    INNER JOIN dbo.DimTime dt ON dt.time_key = rnk.time_key
+    SELECT lkp.id, lkp.time_key, lkp.protocol_key, lkp.service_key, lkp.label_key,
+           lkp.flow_id, lkp.[timestamp],
+           1, lkp.is_attack,
+           lkp.fwd_pkt_len_tot, lkp.bwd_pkt_len_tot, lkp.fwd_pkt_len_tot + lkp.bwd_pkt_len_tot,
+           lkp.fwd_pkt_cnt, lkp.bwd_pkt_cnt, lkp.fwd_pkt_cnt + lkp.bwd_pkt_cnt,
+           lkp.flow_duration, lkp.bytes_per_s
+    FROM lkp
+    INNER JOIN dbo.DimTime dt ON dt.time_key = lkp.time_key
 
     IF ROWCOUNT_BIG() <> @src
         THROW 50001, 'FactNetworkFlow: so dong nap khac data_raw (co khoa Dim khong map duoc)', 1
@@ -278,34 +265,10 @@ BEGIN
     CREATE INDEX IX_Fact_Protocol ON dbo.FactNetworkFlow (protocol_key)
     CREATE INDEX IX_Fact_Service  ON dbo.FactNetworkFlow (service_key)
     CREATE INDEX IX_Fact_Label    ON dbo.FactNetworkFlow (label_key)
-    CREATE INDEX IX_Fact_Split    ON dbo.FactNetworkFlow (data_split)
 
     --SELECT TOP (100) * FROM dbo.FactNetworkFlow
 
--- 6. FlowFeature: 30 đặc trưng đã chọn ở notebook (MI + loại cột tương quan >= 0.95), quan hệ 1-1 với Fact
-
-    DROP TABLE IF EXISTS dbo.FlowFeature
-
-    SELECT CAST(dr.id AS BIGINT) AS flow_key,
-           dr.bwd_pkt_len_mean, dr.bwd_pkt_len_tot, dr.pkt_len_max, dr.fwd_pkt_hdr_len_tot,
-           dr.flag_ack, dr.fwd_pkt_len_max, dr.fwd_pkt_len_mean, dr.fwd_subflow_bytes_mean,
-           dr.fwd_pkt_len_tot, dr.bwd_pkt_hdr_len_tot, dr.bwd_tcp_init_win_bytes, dr.iat_max,
-           dr.fwd_iat_max, dr.fwd_tcp_init_win_bytes, dr.bwd_pkt_len_std, dr.bytes_per_s,
-           dr.flag_SYN, dr.bwd_pkt_per_s, dr.bwd_iat_max, dr.fwd_pkt_len_std,
-           dr.fwd_subflow_pkt_mean, dr.down_up_ratio, dr.fwd_pkt_cnt, dr.bwd_pkt_cnt,
-           dr.fwd_iat_std, dr.fwd_non_empty_pkt_cnt, dr.bwd_subflow_pkt_mean,
-           dr.bwd_non_empty_pkt_cnt, dr.fwd_pkt_len_min, dr.bwd_pkt_hdr_len_min
-    INTO dbo.FlowFeature
-    FROM dbo.data_raw dr
-
-    ALTER TABLE dbo.FlowFeature ALTER COLUMN flow_key BIGINT NOT NULL
-    ALTER TABLE dbo.FlowFeature ADD CONSTRAINT PK_FlowFeature PRIMARY KEY CLUSTERED (flow_key)
-    ALTER TABLE dbo.FlowFeature ADD CONSTRAINT FK_FlowFeature_Fact
-        FOREIGN KEY (flow_key) REFERENCES dbo.FactNetworkFlow (flow_key)
-
-    --SELECT TOP (100) * FROM dbo.FlowFeature
-
--- 7. CubeFlow: cuboid Giờ x Giao thức x Cổng x Loại tấn công
+-- 6. CubeFlow: cuboid Giờ x Giao thức x Cổng x Loại tấn công
 
     DROP TABLE IF EXISTS dbo.CubeFlow
     CREATE TABLE dbo.CubeFlow (
